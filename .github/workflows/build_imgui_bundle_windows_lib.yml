@@ -1,57 +1,59 @@
-name: Build imgui_bundle – Windows Library only
+name: Build imgui_bundle for Windows x64 (VS2019)
 
 on:
-  workflow_dispatch:      # 手动触发
   push:
     branches: [ main ]
+    paths:
+      - 'external/imgui_bundle/**'
+  workflow_dispatch:
 
 jobs:
-  build-win-lib:
-    runs-on: windows-latest
-
+  build-windows:
+    runs-on: windows-2019
     steps:
-    # 1. 检出自己仓库（含本工作流）
-    - name: Checkout
-      uses: actions/checkout@v4
-
-    # 2. 拉取 imgui_bundle 主仓库（递归子模块）
-    - name: Clone imgui_bundle
-      run: |
-        git clone --recursive https://github.com/pthom/imgui_bundle.git external/imgui_bundle
-        cd external/imgui_bundle
-        git submodule update --init --recursive
-
-    # 3. 配置 CMake – 只开“库”开关，关 demo/example
-    - name: Configure CMake
-      shell: pwsh
-      run: |
-        cmake -G "Visual Studio 17 2022" -A x64 `
-              -DCMAKE_BUILD_TYPE=Release `
-              -DHELLOIMGUI_BUILD_DEMOS=OFF `
-              -DHELLOIMGUI_BUILD_EXAMPLES=OFF `
-              -DHELLOIMGUI_BUILD_DOCS=OFF `
-              -S external/imgui_bundle `
-              -B build
-
-    # 4. 编译 – 只打 lib / dll
-    - name: Build
-      run: cmake --build build --config Release --parallel
-
-    # 5. 收集产物：.lib .dll .pdb 及必备头文件
-    - name: Collect artifacts
-      shell: bash
-      run: |
-        mkdir -p artifacts/lib artifacts/include
-        # 库文件
-        find build -name "*.lib" -o -name "*.dll" -o -name "*.pdb" | xargs -I{} cp {} artifacts/lib/
-        # 公共头（按需精简，这里全拷）
-        cp -r external/imgui_bundle/bindings/imgui_bundle artifacts/include/
-        # 也可再拷 hello_imgui 核心头
-        cp -r external/imgui_bundle/external/hello_imgui/hello_imgui artifacts/include/ 2>/dev/null || true
-
-    # 6. 上传工件
-    - name: Upload artifacts
-      uses: actions/upload-artifact@v4
+    - uses: actions/checkout@v3
       with:
-        name: imgui_bundle-windows-lib
-        path: artifacts/
+        submodules: true
+
+    - name: Configure CMake
+      run: |
+        mkdir build
+        cd build
+        cmake .. -G "Visual Studio 16 2019" -A x64 -DCMAKE_CXX_STANDARD=17
+
+    - name: Build
+      run: |
+        cd build
+        cmake --build . --config Release
+
+    - name: Package
+      run: |
+        cd build
+        mkdir imgui_bundle
+        # 复制必要的文件（根据实际需要调整）
+        xcopy ..\external\imgui_bundle\imgui_bundle imgui_bundle\imgui_bundle\ /E /I /H /Y
+        # 如果有其他需要的文件，可以继续添加
+        
+        # 创建压缩包
+        7z a imgui_bundle-windows-vs2019-x64.zip imgui_bundle
+
+    - name: Create Release
+      id: create_release
+      uses: actions/create-release@v1
+      env:
+        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      with:
+        tag_name: v${{ github.run_number }}-win-x64
+        release_name: Release Windows x64 VS2019 v${{ github.run_number }}
+        draft: false
+        prerelease: false
+
+    - name: Upload Release Asset
+      uses: actions/upload-release-asset@v1
+      env:
+        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      with:
+        upload_url: ${{ steps.create_release.outputs.upload_url }}
+        asset_path: ./build/imgui_bundle-windows-vs2019-x64.zip
+        asset_name: imgui_bundle-windows-vs2019-x64.zip
+        asset_content_type: application/zip

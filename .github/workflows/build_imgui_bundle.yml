@@ -35,7 +35,7 @@ jobs:
         shell: pwsh
         run: |
           Get-ChildItem -Force build
-          Get-ChildItem -Force build\Release
+          Get-ChildItem -Force build\bin\Release
 
       - name: Archive build output
         uses: actions/upload-artifact@v4

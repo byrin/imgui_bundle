@@ -44,4 +44,4 @@ jobs:
           path: |
             build\bin\Release\*.exe
             build\bin\Release\*.dll
-            build\bin\Release\*.lib
+            build\lib\Release\*.lib

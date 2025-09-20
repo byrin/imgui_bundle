@@ -1,0 +1,56 @@
+name: Build imgui_bundle – Windows Library only
+
+on:
+  workflow_dispatch:      # 手动触发
+  push:
+    branches: [ main ]
+
+jobs:
+  build-win-lib:
+    runs-on: windows-latest
+
+    steps:
+    # 1. 检出自己仓库（含本工作流）
+    - name: Checkout
+      uses: actions/checkout@v4
+
+    # 2. 拉取 imgui_bundle 主仓库（递归子模块）
+    - name: Clone imgui_bundle
+      run: |
+        git clone --recursive https://github.com/pthom/imgui_bundle.git external/imgui_bundle
+        cd external/imgui_bundle
+        git submodule update --init --recursive
+
+    # 3. 配置 CMake – 只开“库”开关，关 demo/example
+    - name: Configure CMake
+      run: |
+        cmake -G "Visual Studio 17 2022" -A x64 ^
+              -DCMAKE_BUILD_TYPE=Release ^
+              -DHELLOIMGUI_BUILD_DEMOS=OFF ^
+              -DHELLOIMGUI_BUILD_EXAMPLES=OFF ^
+              -DHELLOIMGUI_BUILD_DOCS=OFF ^
+              -S external/imgui_bundle ^
+              -B build
+
+    # 4. 编译 – 只打 lib / dll
+    - name: Build
+      run: cmake --build build --config Release --parallel
+
+    # 5. 收集产物：.lib .dll .pdb 及必备头文件
+    - name: Collect artifacts
+      shell: bash
+      run: |
+        mkdir -p artifacts/lib artifacts/include
+        # 库文件
+        find build -name "*.lib" -o -name "*.dll" -o -name "*.pdb" | xargs -I{} cp {} artifacts/lib/
+        # 公共头（按需精简，这里全拷）
+        cp -r external/imgui_bundle/bindings/imgui_bundle artifacts/include/
+        # 也可再拷 hello_imgui 核心头
+        cp -r external/imgui_bundle/external/hello_imgui/hello_imgui artifacts/include/ 2>/dev/null || true
+
+    # 6. 上传工件
+    - name: Upload artifacts
+      uses: actions/upload-artifact@v4
+      with:
+        name: imgui_bundle-windows-lib
+        path: artifacts/

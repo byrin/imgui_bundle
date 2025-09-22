@@ -1,0 +1,21 @@
+name: 1-download-sources
+on:
+  workflow_dispatch:   # 只允许手动触发
+jobs:
+  dist:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          submodules: recursive      # 一次性拉齐子模块
+      - name: pack
+        run: |
+          tar czf imgui_bundle_sources.tar.gz \
+            --exclude=.git \
+            --exclude=build \
+            .
+      - name: upload
+        uses: actions/upload-artifact@v4
+        with:
+          name: imgui_bundle_sources   # 下载时看到的包名
+          path: imgui_bundle_sources.tar.gz
